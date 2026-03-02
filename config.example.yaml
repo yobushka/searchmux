@@ -1,0 +1,46 @@
+listen: ":8080"
+
+defaults:
+  timeout: 5s
+  max_results: 10
+
+providers:
+  - name: tavily
+    tier: 1
+    api_key: ${TAVILY_API_KEY}
+    rate_limit:
+      requests: 1000
+      window: 720h  # 30 days
+    timeout: 3s
+
+  - name: brave
+    tier: 1
+    api_key: ${BRAVE_API_KEY}
+    rate_limit:
+      requests: 2000
+      window: 720h
+    timeout: 3s
+
+  - name: serper
+    tier: 1
+    api_key: ${SERPER_API_KEY}
+    rate_limit:
+      requests: 2500
+      window: 720h
+    timeout: 3s
+
+  - name: searxng
+    tier: 2
+    api_base: http://searxng:8888
+    timeout: 5s
+
+routing:
+  strategy: round-robin
+
+circuit_breaker:
+  threshold: 5
+  timeout: 60s
+
+metrics:
+  enabled: true
+  path: /metrics
