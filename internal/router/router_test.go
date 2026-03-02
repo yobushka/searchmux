@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/provider"
-	"github.com/frenzy/searchmux/internal/ratelimit"
+	"github.com/johnuopini/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/ratelimit"
 )
 
 // mockProvider is a configurable mock for testing the router.

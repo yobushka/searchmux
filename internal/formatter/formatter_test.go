@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/provider"
 )
 
 func TestSearXNGFormatterName(t *testing.T) {

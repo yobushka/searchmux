@@ -7,12 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/config"
-	"github.com/frenzy/searchmux/internal/formatter"
-	"github.com/frenzy/searchmux/internal/provider"
-	"github.com/frenzy/searchmux/internal/ratelimit"
-	"github.com/frenzy/searchmux/internal/router"
-	"github.com/frenzy/searchmux/internal/server"
+	"github.com/johnuopini/searchmux/internal/config"
+	"github.com/johnuopini/searchmux/internal/formatter"
+	"github.com/johnuopini/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/ratelimit"
+	"github.com/johnuopini/searchmux/internal/router"
+	"github.com/johnuopini/searchmux/internal/server"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package formatter
 import (
 	"encoding/json"
 
-	"github.com/frenzy/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/provider"
 )
 
 type searxngResponse struct {

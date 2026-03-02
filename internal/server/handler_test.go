@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/formatter"
-	"github.com/frenzy/searchmux/internal/provider"
-	"github.com/frenzy/searchmux/internal/router"
+	"github.com/johnuopini/searchmux/internal/formatter"
+	"github.com/johnuopini/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/router"
 )
 
 // testProvider is a mock that implements provider.Provider for handler tests.

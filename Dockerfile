@@ -14,7 +14,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o /searchmux ./cmd/searchmux
 
-FROM --platform=${TARGETOS}/${TARGETARCH} alpine:3.23
+FROM alpine:3.23
 
 WORKDIR /app
 

@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/provider"
-	"github.com/frenzy/searchmux/internal/ratelimit"
+	"github.com/johnuopini/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/ratelimit"
 )
 
 // Config holds configuration for the Router.

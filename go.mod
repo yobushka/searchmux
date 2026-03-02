@@ -1,4 +1,4 @@
-module github.com/frenzy/searchmux
+module github.com/johnuopini/searchmux
 
 go 1.23.0
 

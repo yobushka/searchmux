@@ -7,9 +7,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/frenzy/searchmux/internal/formatter"
-	"github.com/frenzy/searchmux/internal/provider"
-	"github.com/frenzy/searchmux/internal/router"
+	"github.com/johnuopini/searchmux/internal/formatter"
+	"github.com/johnuopini/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/router"
 )
 
 // Handler holds the dependencies for HTTP request handling.

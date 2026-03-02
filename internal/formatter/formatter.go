@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/frenzy/searchmux/internal/provider"
+	"github.com/johnuopini/searchmux/internal/provider"
 )
 
 // Metadata holds information about the search routing decision.
