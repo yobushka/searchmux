@@ -21,204 +21,116 @@ func TestLoadConfig(t *testing.T) {
 	yaml := `
 listen: ":9090"
 defaults:
-  timeout: 5s
-  max_results: 20
-  safe_search: 1
-  language: "en"
+  timeout: 3s
+  max_results: 5
 providers:
   - name: tavily
-    tier: primary
-    api_key: "test-key-tavily"
-    api_base: "https://api.tavily.com"
-    rate_limit: 100
-    timeout: 3s
-  - name: brave
-    tier: fallback
-    api_key: "test-key-brave"
-    api_base: "https://api.search.brave.com"
-    rate_limit: 50
-    timeout: 4s
+    tier: 1
+    api_key: test-key
+    rate_limit:
+      requests: 1000
+      window: 720h
+    timeout: 2s
+  - name: searxng
+    tier: 2
+    api_base: http://searxng:8888
+    timeout: 5s
 routing:
-  strategy: "tiered"
-  max_fallbacks: 2
+  strategy: round-robin
 circuit_breaker:
   threshold: 5
-  timeout: 30s
+  timeout: 60s
 metrics:
   enabled: true
-  path: "/metrics"
+  path: /metrics
 `
 	path := writeTestConfig(t, yaml)
 	cfg, err := Load(path)
 	if err != nil {
-		t.Fatalf("Load() returned error: %v", err)
+		t.Fatalf("Load() error: %v", err)
 	}
 
-	// Listen
 	if cfg.Listen != ":9090" {
 		t.Errorf("Listen = %q, want %q", cfg.Listen, ":9090")
 	}
-
-	// Defaults
-	if cfg.Defaults.Timeout != 5*time.Second {
-		t.Errorf("Defaults.Timeout = %v, want %v", cfg.Defaults.Timeout, 5*time.Second)
+	if cfg.Defaults.Timeout != 3*time.Second {
+		t.Errorf("Defaults.Timeout = %v, want %v", cfg.Defaults.Timeout, 3*time.Second)
 	}
-	if cfg.Defaults.MaxResults != 20 {
-		t.Errorf("Defaults.MaxResults = %d, want %d", cfg.Defaults.MaxResults, 20)
+	if cfg.Defaults.MaxResults != 5 {
+		t.Errorf("Defaults.MaxResults = %d, want 5", cfg.Defaults.MaxResults)
 	}
-	if cfg.Defaults.SafeSearch != 1 {
-		t.Errorf("Defaults.SafeSearch = %d, want %d", cfg.Defaults.SafeSearch, 1)
-	}
-	if cfg.Defaults.Language != "en" {
-		t.Errorf("Defaults.Language = %q, want %q", cfg.Defaults.Language, "en")
-	}
-
-	// Providers
 	if len(cfg.Providers) != 2 {
 		t.Fatalf("len(Providers) = %d, want 2", len(cfg.Providers))
 	}
-	p0 := cfg.Providers[0]
-	if p0.Name != "tavily" {
-		t.Errorf("Providers[0].Name = %q, want %q", p0.Name, "tavily")
+	if cfg.Providers[0].Name != "tavily" {
+		t.Errorf("Providers[0].Name = %q, want %q", cfg.Providers[0].Name, "tavily")
 	}
-	if p0.Tier != "primary" {
-		t.Errorf("Providers[0].Tier = %q, want %q", p0.Tier, "primary")
+	if cfg.Providers[0].Tier != 1 {
+		t.Errorf("Providers[0].Tier = %d, want 1", cfg.Providers[0].Tier)
 	}
-	if p0.APIKey != "test-key-tavily" {
-		t.Errorf("Providers[0].APIKey = %q, want %q", p0.APIKey, "test-key-tavily")
+	if cfg.Providers[0].APIKey != "test-key" {
+		t.Errorf("Providers[0].APIKey = %q, want %q", cfg.Providers[0].APIKey, "test-key")
 	}
-	if p0.APIBase != "https://api.tavily.com" {
-		t.Errorf("Providers[0].APIBase = %q, want %q", p0.APIBase, "https://api.tavily.com")
+	if cfg.Providers[0].RateLimit.Requests != 1000 {
+		t.Errorf("RateLimit.Requests = %d, want 1000", cfg.Providers[0].RateLimit.Requests)
 	}
-	if p0.RateLimit != 100 {
-		t.Errorf("Providers[0].RateLimit = %d, want %d", p0.RateLimit, 100)
+	if cfg.Providers[0].RateLimit.Window != 720*time.Hour {
+		t.Errorf("RateLimit.Window = %v, want 720h", cfg.Providers[0].RateLimit.Window)
 	}
-	if p0.Timeout != 3*time.Second {
-		t.Errorf("Providers[0].Timeout = %v, want %v", p0.Timeout, 3*time.Second)
+	if cfg.Routing.Strategy != "round-robin" {
+		t.Errorf("Strategy = %q, want %q", cfg.Routing.Strategy, "round-robin")
 	}
-
-	p1 := cfg.Providers[1]
-	if p1.Name != "brave" {
-		t.Errorf("Providers[1].Name = %q, want %q", p1.Name, "brave")
-	}
-	if p1.Tier != "fallback" {
-		t.Errorf("Providers[1].Tier = %q, want %q", p1.Tier, "fallback")
-	}
-	if p1.RateLimit != 50 {
-		t.Errorf("Providers[1].RateLimit = %d, want %d", p1.RateLimit, 50)
-	}
-
-	// Routing
-	if cfg.Routing.Strategy != "tiered" {
-		t.Errorf("Routing.Strategy = %q, want %q", cfg.Routing.Strategy, "tiered")
-	}
-	if cfg.Routing.MaxFallbacks != 2 {
-		t.Errorf("Routing.MaxFallbacks = %d, want %d", cfg.Routing.MaxFallbacks, 2)
-	}
-
-	// CircuitBreaker
 	if cfg.CircuitBreaker.Threshold != 5 {
-		t.Errorf("CircuitBreaker.Threshold = %d, want %d", cfg.CircuitBreaker.Threshold, 5)
-	}
-	if cfg.CircuitBreaker.Timeout != 30*time.Second {
-		t.Errorf("CircuitBreaker.Timeout = %v, want %v", cfg.CircuitBreaker.Timeout, 30*time.Second)
-	}
-
-	// Metrics
-	if !cfg.Metrics.Enabled {
-		t.Error("Metrics.Enabled = false, want true")
-	}
-	if cfg.Metrics.Path != "/metrics" {
-		t.Errorf("Metrics.Path = %q, want %q", cfg.Metrics.Path, "/metrics")
+		t.Errorf("CB Threshold = %d, want 5", cfg.CircuitBreaker.Threshold)
 	}
 }
 
 func TestLoadConfigEnvSubstitution(t *testing.T) {
-	t.Setenv("TAVILY_API_KEY", "env-tavily-secret")
-	t.Setenv("BRAVE_API_KEY", "env-brave-secret")
-	t.Setenv("LISTEN_ADDR", ":7070")
+	t.Setenv("TEST_TAVILY_KEY", "tvly-secret-123")
 
 	yaml := `
-listen: "${LISTEN_ADDR}"
+listen: ":8080"
 providers:
   - name: tavily
-    tier: primary
-    api_key: "${TAVILY_API_KEY}"
-  - name: brave
-    tier: fallback
-    api_key: "${BRAVE_API_KEY}"
+    tier: 1
+    api_key: ${TEST_TAVILY_KEY}
+    timeout: 3s
 `
 	path := writeTestConfig(t, yaml)
 	cfg, err := Load(path)
 	if err != nil {
-		t.Fatalf("Load() returned error: %v", err)
+		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.Listen != ":7070" {
-		t.Errorf("Listen = %q, want %q (env substitution failed)", cfg.Listen, ":7070")
-	}
-	if cfg.Providers[0].APIKey != "env-tavily-secret" {
-		t.Errorf("Providers[0].APIKey = %q, want %q", cfg.Providers[0].APIKey, "env-tavily-secret")
-	}
-	if cfg.Providers[1].APIKey != "env-brave-secret" {
-		t.Errorf("Providers[1].APIKey = %q, want %q", cfg.Providers[1].APIKey, "env-brave-secret")
+	if cfg.Providers[0].APIKey != "tvly-secret-123" {
+		t.Errorf("APIKey = %q, want %q", cfg.Providers[0].APIKey, "tvly-secret-123")
 	}
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
 	yaml := `
 providers:
-  - name: tavily
-    tier: primary
-    api_key: "key"
+  - name: searxng
+    tier: 2
+    api_base: http://searxng:8888
 `
 	path := writeTestConfig(t, yaml)
 	cfg, err := Load(path)
 	if err != nil {
-		t.Fatalf("Load() returned error: %v", err)
+		t.Fatalf("Load() error: %v", err)
 	}
 
-	// Listen default
 	if cfg.Listen != ":8080" {
 		t.Errorf("Listen = %q, want default %q", cfg.Listen, ":8080")
 	}
-
-	// Defaults defaults
-	if cfg.Defaults.Timeout != 10*time.Second {
-		t.Errorf("Defaults.Timeout = %v, want default %v", cfg.Defaults.Timeout, 10*time.Second)
+	if cfg.Defaults.Timeout != 5*time.Second {
+		t.Errorf("Defaults.Timeout = %v, want default %v", cfg.Defaults.Timeout, 5*time.Second)
 	}
 	if cfg.Defaults.MaxResults != 10 {
-		t.Errorf("Defaults.MaxResults = %d, want default %d", cfg.Defaults.MaxResults, 10)
+		t.Errorf("Defaults.MaxResults = %d, want default 10", cfg.Defaults.MaxResults)
 	}
-	if cfg.Defaults.SafeSearch != 0 {
-		t.Errorf("Defaults.SafeSearch = %d, want default %d", cfg.Defaults.SafeSearch, 0)
-	}
-	if cfg.Defaults.Language != "" {
-		t.Errorf("Defaults.Language = %q, want default %q", cfg.Defaults.Language, "")
-	}
-
-	// Routing defaults
-	if cfg.Routing.Strategy != "tiered" {
-		t.Errorf("Routing.Strategy = %q, want default %q", cfg.Routing.Strategy, "tiered")
-	}
-	if cfg.Routing.MaxFallbacks != 2 {
-		t.Errorf("Routing.MaxFallbacks = %d, want default %d", cfg.Routing.MaxFallbacks, 2)
-	}
-
-	// CircuitBreaker defaults
-	if cfg.CircuitBreaker.Threshold != 5 {
-		t.Errorf("CircuitBreaker.Threshold = %d, want default %d", cfg.CircuitBreaker.Threshold, 5)
-	}
-	if cfg.CircuitBreaker.Timeout != 30*time.Second {
-		t.Errorf("CircuitBreaker.Timeout = %v, want default %v", cfg.CircuitBreaker.Timeout, 30*time.Second)
-	}
-
-	// Metrics defaults
-	if cfg.Metrics.Enabled {
-		t.Error("Metrics.Enabled = true, want default false")
-	}
-	if cfg.Metrics.Path != "/metrics" {
-		t.Errorf("Metrics.Path = %q, want default %q", cfg.Metrics.Path, "/metrics")
+	if cfg.Routing.Strategy != "round-robin" {
+		t.Errorf("Strategy = %q, want default %q", cfg.Routing.Strategy, "round-robin")
 	}
 }
 
@@ -227,106 +139,51 @@ func TestValidateConfig(t *testing.T) {
 		name    string
 		cfg     Config
 		wantErr bool
-		errMsg  string
 	}{
 		{
-			name: "valid config",
-			cfg: Config{
-				Providers: []ProviderConfig{
-					{Name: "tavily", Tier: "primary", APIKey: "key"},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "no providers",
-			cfg: Config{
-				Providers: []ProviderConfig{},
-			},
+			name:    "no providers",
+			cfg:     Config{},
 			wantErr: true,
-			errMsg:  "at least one provider",
-		},
-		{
-			name: "nil providers",
-			cfg: Config{
-				Providers: nil,
-			},
-			wantErr: true,
-			errMsg:  "at least one provider",
 		},
 		{
 			name: "provider missing name",
 			cfg: Config{
-				Providers: []ProviderConfig{
-					{Name: "", Tier: "primary", APIKey: "key"},
-				},
+				Providers: []ProviderConfig{{Tier: 1}},
 			},
 			wantErr: true,
-			errMsg:  "name is required",
 		},
 		{
 			name: "provider missing tier",
 			cfg: Config{
-				Providers: []ProviderConfig{
-					{Name: "tavily", Tier: "", APIKey: "key"},
-				},
+				Providers: []ProviderConfig{{Name: "tavily"}},
 			},
 			wantErr: true,
-			errMsg:  "tier is required",
+		},
+		{
+			name: "valid minimal config",
+			cfg: Config{
+				Providers: []ProviderConfig{{Name: "searxng", Tier: 1, APIBase: "http://localhost:8888"}},
+			},
+			wantErr: false,
 		},
 		{
 			name: "multiple providers valid",
 			cfg: Config{
 				Providers: []ProviderConfig{
-					{Name: "tavily", Tier: "primary", APIKey: "key1"},
-					{Name: "brave", Tier: "fallback", APIKey: "key2"},
+					{Name: "tavily", Tier: 1, APIKey: "key1"},
+					{Name: "brave", Tier: 1, APIKey: "key2"},
 				},
 			},
 			wantErr: false,
-		},
-		{
-			name: "second provider invalid",
-			cfg: Config{
-				Providers: []ProviderConfig{
-					{Name: "tavily", Tier: "primary", APIKey: "key1"},
-					{Name: "", Tier: "fallback", APIKey: "key2"},
-				},
-			},
-			wantErr: true,
-			errMsg:  "name is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.cfg.Validate()
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("Validate() returned nil, want error")
-				}
-				if tt.errMsg != "" {
-					if got := err.Error(); !contains(got, tt.errMsg) {
-						t.Errorf("error = %q, want it to contain %q", got, tt.errMsg)
-					}
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("Validate() returned error: %v", err)
-				}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

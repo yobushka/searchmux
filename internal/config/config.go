@@ -30,17 +30,22 @@ type DefaultsConfig struct {
 // ProviderConfig holds configuration for a single search provider.
 type ProviderConfig struct {
 	Name      string        `yaml:"name"`
-	Tier      string        `yaml:"tier"`
+	Tier      int           `yaml:"tier"`
 	APIKey    string        `yaml:"api_key"`
 	APIBase   string        `yaml:"api_base"`
-	RateLimit int           `yaml:"rate_limit"`
+	RateLimit RateLimitConf `yaml:"rate_limit"`
 	Timeout   time.Duration `yaml:"timeout"`
+}
+
+// RateLimitConf defines rate limit parameters for a provider.
+type RateLimitConf struct {
+	Requests int           `yaml:"requests"`
+	Window   time.Duration `yaml:"window"`
 }
 
 // RoutingConfig controls how requests are routed across providers.
 type RoutingConfig struct {
-	Strategy     string `yaml:"strategy"`
-	MaxFallbacks int    `yaml:"max_fallbacks"`
+	Strategy string `yaml:"strategy"`
 }
 
 // CircuitBreakerConfig controls circuit breaker behavior.
@@ -74,16 +79,13 @@ func (c *Config) applyDefaults() {
 		c.Listen = ":8080"
 	}
 	if c.Defaults.Timeout == 0 {
-		c.Defaults.Timeout = 10 * time.Second
+		c.Defaults.Timeout = 5 * time.Second
 	}
 	if c.Defaults.MaxResults == 0 {
 		c.Defaults.MaxResults = 10
 	}
 	if c.Routing.Strategy == "" {
-		c.Routing.Strategy = "tiered"
-	}
-	if c.Routing.MaxFallbacks == 0 {
-		c.Routing.MaxFallbacks = 2
+		c.Routing.Strategy = "round-robin"
 	}
 	if c.CircuitBreaker.Threshold == 0 {
 		c.CircuitBreaker.Threshold = 5
@@ -126,7 +128,7 @@ func (c *Config) Validate() error {
 		if p.Name == "" {
 			return fmt.Errorf("config: provider[%d]: name is required", i)
 		}
-		if p.Tier == "" {
+		if p.Tier == 0 {
 			return fmt.Errorf("config: provider[%d] (%s): tier is required", i, p.Name)
 		}
 	}

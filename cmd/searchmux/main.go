@@ -46,12 +46,11 @@ func main() {
 			continue
 		}
 
-		tier := parseTier(pc.Tier)
-		if pc.RateLimit > 0 {
-			tracker.Configure(pc.Name, pc.RateLimit, time.Minute)
+		if pc.RateLimit.Requests > 0 && pc.RateLimit.Window > 0 {
+			tracker.Configure(pc.Name, pc.RateLimit.Requests, pc.RateLimit.Window)
 		}
-		r.AddProvider(p, tier)
-		slog.Info("registered provider", "name", pc.Name, "tier", tier)
+		r.AddProvider(p, pc.Tier)
+		slog.Info("registered provider", "name", pc.Name, "tier", pc.Tier)
 	}
 
 	fmtRegistry := formatter.NewRegistry()
@@ -64,21 +63,6 @@ func main() {
 	if err := http.ListenAndServe(cfg.Listen, server.LoggingMiddleware(mux)); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
-	}
-}
-
-// parseTier converts a tier name string to its numeric priority.
-// Lower numbers have higher priority.
-func parseTier(tier string) int {
-	switch tier {
-	case "primary":
-		return 1
-	case "secondary":
-		return 2
-	case "fallback":
-		return 3
-	default:
-		return 10
 	}
 }
 
