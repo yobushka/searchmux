@@ -1,1 +1,21 @@
+# Binary
 searchmux
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets
+config.yaml
+!config.example.yaml
+
+# Test artifacts
+coverage.out
+*.test
