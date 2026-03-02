@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/frenzy/searchmux/internal/formatter"
 	"github.com/frenzy/searchmux/internal/provider"
 	"github.com/frenzy/searchmux/internal/router"
@@ -45,8 +47,17 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.router.Search(r.Context(), query, opts)
 	if err != nil {
+		RequestsTotal.WithLabelValues("none", "0", "error").Inc()
 		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
 		return
+	}
+
+	// Record metrics for successful search.
+	tierStr := strconv.Itoa(result.TierUsed)
+	RequestsTotal.WithLabelValues(result.ProviderUsed, tierStr, "success").Inc()
+	LatencyHistogram.WithLabelValues(result.ProviderUsed).Observe(result.Latency.Seconds())
+	if result.Fallback {
+		FallbacksTotal.WithLabelValues("1", tierStr).Inc()
 	}
 
 	formatName := r.URL.Query().Get("format")
@@ -96,9 +107,10 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Mux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", h.HandleSearch)
-	mux.HandleFunc("/", h.HandleSearch)       // root alias
+	mux.HandleFunc("/", h.HandleSearch)         // root alias
 	mux.HandleFunc("/health", h.HandleHealth)
 	mux.HandleFunc("/_/health", h.HandleHealth) // OpenFaaS watchdog
+	mux.Handle("/metrics", promhttp.Handler())
 	return mux
 }
 
