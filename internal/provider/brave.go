@@ -26,7 +26,7 @@ func NewBrave(apiKey string, timeout time.Duration) *Brave {
 }
 
 func (b *Brave) Name() string   { return "brave" }
-func (b *Brave) Available() bool { return true }
+func (b *Brave) Available() bool { return b.apiKey != "" }
 
 // braveResponse is the JSON response from the Brave Search API.
 type braveResponse struct {

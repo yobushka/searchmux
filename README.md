@@ -136,7 +136,7 @@ Returns provider availability, circuit breaker states, and rate limit remaining 
 Prometheus metrics endpoint. Exports:
 
 - `searchmux_requests_total{provider, tier, status}` -- request counter
-- `searchmux_request_duration_seconds{provider}` -- latency histogram
+- `searchmux_latency_seconds{provider}` -- latency histogram
 - `searchmux_fallbacks_total{from_tier, to_tier}` -- fallback counter
 
 ## Adding Providers

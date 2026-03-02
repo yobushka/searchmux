@@ -67,6 +67,9 @@ func (cb *CircuitBreaker) Allow() bool {
 		}
 		return false
 	case StateHalfOpen:
+		// Allow one probe, then block subsequent requests until the probe completes.
+		cb.state = StateOpen
+		cb.openedAt = time.Now()
 		return true
 	default:
 		return false

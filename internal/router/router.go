@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -207,20 +208,5 @@ func isRateLimitError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Check for common rate limit error patterns.
-	msg := err.Error()
-	return contains429(msg)
-}
-
-func contains429(s string) bool {
-	return len(s) >= 3 && containsSubstring(s, "429")
-}
-
-func containsSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(err.Error(), "429")
 }

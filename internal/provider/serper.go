@@ -26,7 +26,7 @@ func NewSerper(apiKey string, timeout time.Duration) *Serper {
 }
 
 func (s *Serper) Name() string   { return "serper" }
-func (s *Serper) Available() bool { return true }
+func (s *Serper) Available() bool { return s.apiKey != "" }
 
 // serperRequest is the JSON body sent to the Serper API.
 type serperRequest struct {

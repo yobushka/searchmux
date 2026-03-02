@@ -7,11 +7,14 @@ import (
 )
 
 type searxngResponse struct {
-	Query        string            `json:"query"`
-	Results      []provider.Result `json:"results"`
-	ProviderUsed string            `json:"provider_used"`
-	TierUsed     int               `json:"tier_used"`
-	Fallback     bool              `json:"fallback"`
+	Query           string            `json:"query"`
+	NumberOfResults int               `json:"number_of_results"`
+	Results         []provider.Result `json:"results"`
+	Infoboxes       []interface{}     `json:"infoboxes"`
+	XProvider       string            `json:"x-provider"`
+	XTier           int               `json:"x-tier"`
+	XFallback       bool              `json:"x-fallback"`
+	XLatencyMs      int64             `json:"x-latency-ms"`
 }
 
 // SearXNGFormatter formats search results as SearXNG-compatible JSON.
@@ -28,11 +31,17 @@ func (f *SearXNGFormatter) ContentType() string { return "application/json" }
 
 // Format serializes the search results into SearXNG JSON format.
 func (f *SearXNGFormatter) Format(query string, results []provider.Result, meta Metadata) ([]byte, error) {
+	if results == nil {
+		results = []provider.Result{}
+	}
 	return json.Marshal(searxngResponse{
-		Query:        query,
-		Results:      results,
-		ProviderUsed: meta.ProviderUsed,
-		TierUsed:     meta.TierUsed,
-		Fallback:     meta.Fallback,
+		Query:           query,
+		NumberOfResults: len(results),
+		Results:         results,
+		Infoboxes:       []interface{}{},
+		XProvider:       meta.ProviderUsed,
+		XTier:           meta.TierUsed,
+		XFallback:       meta.Fallback,
+		XLatencyMs:      meta.Latency.Milliseconds(),
 	})
 }

@@ -24,7 +24,7 @@ func NewSearXNG(apiBase string, timeout time.Duration) *SearXNG {
 }
 
 func (s *SearXNG) Name() string   { return "searxng" }
-func (s *SearXNG) Available() bool { return true }
+func (s *SearXNG) Available() bool { return s.apiBase != "" }
 
 // searxngResponse is the JSON response from the SearXNG API.
 type searxngResponse struct {

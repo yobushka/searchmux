@@ -25,8 +25,8 @@ func NewTavily(apiKey string, timeout time.Duration) *Tavily {
 	}
 }
 
-func (t *Tavily) Name() string     { return "tavily" }
-func (t *Tavily) Available() bool   { return true }
+func (t *Tavily) Name() string   { return "tavily" }
+func (t *Tavily) Available() bool { return t.apiKey != "" }
 
 // tavilyRequest is the JSON body sent to the Tavily API.
 type tavilyRequest struct {

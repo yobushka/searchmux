@@ -12,9 +12,9 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o /searchmux ./cmd/searchmux
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-s -w" -o /searchmux ./cmd/searchmux
 
-FROM --platform=linux/arm64 alpine:3.23
+FROM --platform=${TARGETOS}/${TARGETARCH} alpine:3.23
 
 WORKDIR /app
 

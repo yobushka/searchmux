@@ -49,14 +49,27 @@ func TestSearXNGFormat(t *testing.T) {
 	if resp["query"] != "golang" {
 		t.Errorf("query = %v, want %q", resp["query"], "golang")
 	}
-	if resp["provider_used"] != "searxng-primary" {
-		t.Errorf("provider_used = %v, want %q", resp["provider_used"], "searxng-primary")
+	if int(resp["number_of_results"].(float64)) != 2 {
+		t.Errorf("number_of_results = %v, want 2", resp["number_of_results"])
 	}
-	if int(resp["tier_used"].(float64)) != 1 {
-		t.Errorf("tier_used = %v, want 1", resp["tier_used"])
+	if resp["x-provider"] != "searxng-primary" {
+		t.Errorf("x-provider = %v, want %q", resp["x-provider"], "searxng-primary")
 	}
-	if resp["fallback"] != false {
-		t.Errorf("fallback = %v, want false", resp["fallback"])
+	if int(resp["x-tier"].(float64)) != 1 {
+		t.Errorf("x-tier = %v, want 1", resp["x-tier"])
+	}
+	if resp["x-fallback"] != false {
+		t.Errorf("x-fallback = %v, want false", resp["x-fallback"])
+	}
+	if int(resp["x-latency-ms"].(float64)) != 150 {
+		t.Errorf("x-latency-ms = %v, want 150", resp["x-latency-ms"])
+	}
+	infoboxes, ok := resp["infoboxes"].([]interface{})
+	if !ok {
+		t.Fatal("infoboxes is not an array")
+	}
+	if len(infoboxes) != 0 {
+		t.Errorf("infoboxes length = %d, want 0", len(infoboxes))
 	}
 
 	// Check results array
@@ -100,7 +113,17 @@ func TestSearXNGFormatEmptyResults(t *testing.T) {
 	if resp["query"] != "empty" {
 		t.Errorf("query = %v, want %q", resp["query"], "empty")
 	}
-	// null results is acceptable for nil input
+	if int(resp["number_of_results"].(float64)) != 0 {
+		t.Errorf("number_of_results = %v, want 0", resp["number_of_results"])
+	}
+	// Empty results array (not null) is expected for nil input
+	emptyResults, ok := resp["results"].([]interface{})
+	if !ok {
+		t.Fatal("results should be an empty array, not null")
+	}
+	if len(emptyResults) != 0 {
+		t.Errorf("results length = %d, want 0", len(emptyResults))
+	}
 }
 
 func TestGetFormatter(t *testing.T) {
