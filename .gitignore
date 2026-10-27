@@ -1,5 +1,5 @@
-# Binary
-searchmux
+# Binary (root only; do not hide cmd/searchmux source files)
+/searchmux
 
 # IDE
 .idea/
@@ -15,6 +15,30 @@ Thumbs.db
 # Config with secrets
 config.yaml
 !config.example.yaml
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OMO / Oh My OpenCode: local plans, drafts, evidence and session state.
+# Keep shared rules and project initialization config versionable.
+/.omo/*
+!/.omo/rules/
+!/.omo/rules/**
+!/.omo/init-deep.json
+/.sisyphus/*
+!/.sisyphus/rules/
+!/.sisyphus/rules/**
+
+# Hermes: local runtime home and agent worktrees, not project skills.
+# AGENTS.md, HERMES.md and .hermes.md intentionally remain versionable.
+/.hermes/*
+!/.hermes/skills/
+!/.hermes/skills/**
+/.worktrees/
+
+# OpenCode: generated dependencies, not shared config/agents/commands/plugins.
+/.opencode/node_modules/
 
 # Test artifacts
 coverage.out
