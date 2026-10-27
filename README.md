@@ -1,6 +1,16 @@
-# SearchMux
+# SearchMux — адаптация для HERMES
 
-A search multiplexer that routes queries across multiple search providers with tiered fallback, rate limit tracking, and circuit breaking. Built for OpenFaaS deployment.
+Этот репозиторий — [форк SearchMux](https://github.com/johnuopini/searchmux), предназначенный для адаптации сервиса к работе с **HERMES Agent**.
+
+SearchMux служит единым поисковым шлюзом: направляет запросы к нескольким поисковым провайдерам, переключается на резервные по уровням приоритета, отслеживает лимиты и временно исключает провайдеров при повторяющихся ошибках.
+
+## Назначение форка
+
+Основной фокус — совместимость API SearchMux со штатным SearXNG-клиентом HERMES, чтобы подключать поисковый шлюз без локальных патчей HERMES и отдельного поискового плагина. При этом сохраняются возможности исходного проекта: маршрутизация запросов, резервные провайдеры и выдача результатов в формате SearXNG JSON.
+
+Совместимость со штатным клиентом HERMES — цель доработок форка, а не заявление о завершённой интеграции. Текущие параметры API описаны ниже; исходная документация SearchMux сохранена для справки.
+
+Оригинальный проект: [johnuopini/searchmux](https://github.com/johnuopini/searchmux). Этот форк не является официальным репозиторием HERMES Agent.
 
 ## Architecture
 
