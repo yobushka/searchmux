@@ -19,11 +19,13 @@ type testProvider struct {
 	available bool
 	results   []provider.Result
 	err       error
+	opts      provider.SearchOpts
 }
 
 func (p *testProvider) Name() string { return p.name }
 func (p *testProvider) Available() bool { return p.available }
-func (p *testProvider) Search(_ context.Context, _ string, _ provider.SearchOpts) (*provider.Response, error) {
+func (p *testProvider) Search(_ context.Context, _ string, opts provider.SearchOpts) (*provider.Response, error) {
+	p.opts = opts
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -87,6 +89,69 @@ func TestSearchHandler(t *testing.T) {
 	first := results[0].(map[string]interface{})
 	if first["title"] != "Test Result" {
 		t.Errorf("first result title = %v, want %q", first["title"], "Test Result")
+	}
+}
+
+func TestSearchHandlerJSONFormat(t *testing.T) {
+	p := &testProvider{
+		name: "mock", available: true,
+		results: []provider.Result{{Title: "Test Result", URL: "https://example.com", Snippet: "A test result", Source: "mock"}},
+	}
+	h := newTestHandler(p)
+	rec := httptest.NewRecorder()
+
+	h.Mux().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/search?q=hello&format=json", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var body struct {
+		Query           string              `json:"query"`
+		NumberOfResults int                 `json:"number_of_results"`
+		Results         []map[string]string `json:"results"`
+		Infoboxes       []json.RawMessage   `json:"infoboxes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if body.Query != "hello" || body.NumberOfResults != 1 || len(body.Results) != 1 {
+		t.Fatalf("unexpected SearXNG payload: %+v", body)
+	}
+	if first := body.Results[0]; first["title"] != "Test Result" || first["url"] != "https://example.com" || first["content"] != "A test result" || first["engine"] != "mock" {
+		t.Errorf("unexpected SearXNG result: %v", first)
+	}
+	if body.Infoboxes == nil || len(body.Infoboxes) != 0 {
+		t.Errorf("infoboxes = %v, want empty array", body.Infoboxes)
+	}
+}
+
+func TestSearchHandlerLanguage(t *testing.T) {
+	for _, tt := range []struct {
+		name, params, want string
+	}{
+		{"lang", "&lang=en", "en"},
+		{"language", "&language=fr", "fr"},
+		{"lang takes precedence", "&lang=en&language=fr", "en"},
+		{"empty lang falls back", "&lang=&language=fr", "fr"},
+		{"neither parameter", "", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &testProvider{name: "mock", available: true}
+			h := newTestHandler(p)
+			rec := httptest.NewRecorder()
+
+			h.Mux().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/search?q=hello"+tt.params, nil))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+			}
+			if p.opts.Language != tt.want {
+				t.Errorf("provider language = %q, want %q", p.opts.Language, tt.want)
+			}
+		})
 	}
 }
 

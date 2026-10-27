@@ -39,6 +39,9 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 	opts := provider.SearchOpts{
 		Language: r.URL.Query().Get("lang"),
 	}
+	if opts.Language == "" {
+		opts.Language = r.URL.Query().Get("language")
+	}
 	if mr := r.URL.Query().Get("max_results"); mr != "" {
 		if n, err := strconv.Atoi(mr); err == nil && n > 0 {
 			opts.MaxResults = n
@@ -63,6 +66,9 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 	formatName := r.URL.Query().Get("format")
 	if formatName == "" {
 		formatName = h.defaultFormat
+	}
+	if formatName == "json" {
+		formatName = "searxng"
 	}
 
 	fmt, err := h.formatters.Get(formatName)

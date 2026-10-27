@@ -96,12 +96,13 @@ Search across providers with automatic routing.
 GET /search?q=golang+tutorials&max_results=10&lang=en&format=searxng
 ```
 
-| Parameter    | Required | Default  | Description                     |
-|------------- |----------|----------|---------------------------------|
-| q            | yes      | --       | Search query                    |
-| max_results  | no       | 10       | Maximum number of results       |
-| lang         | no       | --       | Language code (e.g., "en")      |
-| format       | no       | searxng  | Output format name              |
+| Parameter    | Required | Default  | Description                                 |
+|------------- |----------|----------|---------------------------------------------|
+| q            | yes      | --       | Search query                                |
+| max_results  | no       | 10       | Maximum number of results                   |
+| lang         | no       | --       | Language code (e.g., "en")                  |
+| language     | no       | --       | Language code alias (SearXNG compatibility) |
+| format       | no       | searxng  | Output format name (searxng, json)          |
 
 Response (SearXNG format):
 
