@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -17,6 +18,7 @@ import (
 type Config struct {
 	CBThreshold int
 	CBTimeout   time.Duration
+	CBWindow    time.Duration
 	RateLimiter *ratelimit.Tracker
 }
 
@@ -40,6 +42,7 @@ type entry struct {
 	provider provider.Provider
 	tier     int
 	cb       *CircuitBreaker
+	stats    *providerCounters
 }
 
 // Router manages tiered search providers with round-robin selection,
@@ -65,8 +68,8 @@ func (r *Router) AddProvider(p provider.Provider, tier int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	cb := NewCircuitBreaker(r.config.CBThreshold, r.config.CBTimeout)
-	r.entries = append(r.entries, entry{provider: p, tier: tier, cb: cb})
+	cb := NewCircuitBreaker(r.config.CBThreshold, r.config.CBTimeout, r.config.CBWindow)
+	r.entries = append(r.entries, entry{provider: p, tier: tier, cb: cb, stats: &providerCounters{}})
 
 	if _, ok := r.tierCounters[tier]; !ok {
 		r.tierCounters[tier] = &atomic.Uint64{}
@@ -119,23 +122,43 @@ func (r *Router) Search(ctx context.Context, query string, opts provider.SearchO
 		for i := 0; i < len(available); i++ {
 			idx := (startIdx + i) % len(available)
 			e := available[idx]
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("search canceled")
+			}
+			attemptOpts := opts
+			attemptOpts.Credentials = nil
+			attemptOpts.APIKey = ""
+			keyed := requiresKey(e.provider)
+			if keyed {
+				attemptOpts.APIKey = opts.Credentials[e.provider.Name()]
+				if attemptOpts.APIKey == "" {
+					continue
+				}
+			}
+			generation, allowed := e.cb.acquire()
+			if !allowed {
+				continue
+			}
 
 			start := time.Now()
-			resp, err := e.provider.Search(ctx, query, opts)
+			resp, err := e.provider.Search(ctx, query, attemptOpts)
 			latency := time.Since(start)
+			e.stats.record(latency, err != nil)
+			var upstream *provider.HTTPError
+			credentialError := keyed && errors.As(err, &upstream) && (upstream.StatusCode == 401 || upstream.StatusCode == 403 || upstream.StatusCode == 429)
+			e.cb.complete(generation, err != nil, credentialError || ctx.Err() != nil)
 
 			if err != nil {
-				e.cb.RecordFailure()
+				fallback = true
 				// Check for rate limit error (429-like).
-				if r.config.RateLimiter != nil && isRateLimitError(err) {
+				if !keyed && r.config.RateLimiter != nil && isRateLimitError(err) {
 					r.config.RateLimiter.RecordLimit(e.provider.Name())
 				}
 				continue
 			}
 
 			// Success.
-			e.cb.RecordSuccess()
-			if r.config.RateLimiter != nil {
+			if !keyed && r.config.RateLimiter != nil {
 				r.config.RateLimiter.Record(e.provider.Name())
 			}
 
@@ -163,11 +186,11 @@ func (r *Router) Health() map[string]ProviderHealth {
 	health := make(map[string]ProviderHealth, len(r.entries))
 	for _, e := range r.entries {
 		remaining := -1
-		if r.config.RateLimiter != nil {
+		if !requiresKey(e.provider) && r.config.RateLimiter != nil {
 			remaining = r.config.RateLimiter.Remaining(e.provider.Name())
 		}
 		health[e.provider.Name()] = ProviderHealth{
-			Available:          e.provider.Available(),
+			Available:          e.provider.Available() && e.cb.State() != StateOpen && remaining != 0,
 			Circuit:            e.cb.State().String(),
 			RateLimitRemaining: remaining,
 		}
@@ -192,15 +215,20 @@ func (r *Router) filterAvailable(entries []entry) []entry {
 		if !e.provider.Available() {
 			continue
 		}
-		if !e.cb.Allow() {
+		if e.cb.State() == StateOpen {
 			continue
 		}
-		if r.config.RateLimiter != nil && !r.config.RateLimiter.Allow(e.provider.Name()) {
+		if !requiresKey(e.provider) && r.config.RateLimiter != nil && !r.config.RateLimiter.Allow(e.provider.Name()) {
 			continue
 		}
 		available = append(available, e)
 	}
 	return available
+}
+
+func requiresKey(p provider.Provider) bool {
+	keyed, ok := p.(interface{ RequiresAPIKey() bool })
+	return ok && keyed.RequiresAPIKey()
 }
 
 // isRateLimitError checks if the error indicates a rate limit (HTTP 429).

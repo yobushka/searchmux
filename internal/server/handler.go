@@ -2,8 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"io"
+	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -31,10 +34,7 @@ func NewHandler(r *router.Router, fmts *formatter.Registry, defaultFormat string
 // HandleSearch handles GET /search?q=...&max_results=N&lang=en&format=searxng
 func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
-	if query == "" {
-		writeJSONError(w, http.StatusBadRequest, "missing required parameter: q")
-		return
-	}
+	formatName := r.URL.Query().Get("format")
 
 	opts := provider.SearchOpts{
 		Language: r.URL.Query().Get("lang"),
@@ -47,11 +47,70 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 			opts.MaxResults = n
 		}
 	}
+	switch r.Method {
+	case http.MethodGet:
+	case http.MethodPost:
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil || mediaType != "application/json" {
+			writeJSONError(w, http.StatusUnsupportedMediaType, "expected application/json")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		defer r.Body.Close()
+		var body searchRequest
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid search request")
+			return
+		}
+		if err := decoder.Decode(new(json.RawMessage)); err != io.EOF || body.Version != 1 || body.Options.MaxResults < 0 || body.Options.SafeSearch < 0 || body.Options.SafeSearch > 2 {
+			writeJSONError(w, http.StatusBadRequest, "invalid search request")
+			return
+		}
+		query, formatName = body.Query, body.Format
+		opts = provider.SearchOpts{MaxResults: body.Options.MaxResults, Language: body.Options.Language, SafeSearch: body.Options.SafeSearch, Credentials: make(map[string]string, len(body.Credentials))}
+		for name, credential := range body.Credentials {
+			switch name {
+			case "brave", "serper", "tavily", "exa", "jina":
+			default:
+				writeJSONError(w, http.StatusBadRequest, "unsupported credential provider")
+				return
+			}
+			if strings.TrimSpace(credential.APIKey) == "" || strings.ContainsAny(credential.APIKey, "\r\n") {
+				writeJSONError(w, http.StatusBadRequest, "invalid provider credentials")
+				return
+			}
+			opts.Credentials[name] = credential.APIKey
+		}
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if strings.TrimSpace(query) == "" {
+		writeJSONError(w, http.StatusBadRequest, "missing required parameter: q")
+		return
+	}
+	if opts.MaxResults == 0 {
+		opts.MaxResults = 10
+	}
+	if formatName == "" {
+		formatName = h.defaultFormat
+	}
+	if formatName == "json" {
+		formatName = "searxng"
+	}
+	fmt, err := h.formatters.Get(formatName)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, "unsupported output format")
+		return
+	}
 
 	result, err := h.router.Search(r.Context(), query, opts)
 	if err != nil {
 		RequestsTotal.WithLabelValues("none", "0", "error").Inc()
-		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
+		writeJSONError(w, http.StatusServiceUnavailable, "no search provider available")
 		return
 	}
 
@@ -63,20 +122,6 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		FallbacksTotal.WithLabelValues("1", tierStr).Inc()
 	}
 
-	formatName := r.URL.Query().Get("format")
-	if formatName == "" {
-		formatName = h.defaultFormat
-	}
-	if formatName == "json" {
-		formatName = "searxng"
-	}
-
-	fmt, err := h.formatters.Get(formatName)
-	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	meta := formatter.Metadata{
 		ProviderUsed: result.ProviderUsed,
 		TierUsed:     result.TierUsed,
@@ -86,7 +131,7 @@ func (h *Handler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 
 	data, err := fmt.Format(query, result.Results, meta)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "format error: "+err.Error())
+		writeJSONError(w, http.StatusInternalServerError, "response formatting failed")
 		return
 	}
 
@@ -113,11 +158,31 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Mux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", h.HandleSearch)
-	mux.HandleFunc("/", h.HandleSearch)         // root alias
+	mux.HandleFunc("/", h.HandleSearch) // root alias
 	mux.HandleFunc("/health", h.HandleHealth)
 	mux.HandleFunc("/_/health", h.HandleHealth) // OpenFaaS watchdog
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("GET /stats", h.HandleStats)
+	mux.Handle("GET /metrics", promhttp.HandlerFor(h.metricsRegistry(), promhttp.HandlerOpts{}))
 	return mux
+}
+
+type searchRequest struct {
+	Version     int    `json:"version"`
+	Query       string `json:"q"`
+	Credentials map[string]struct {
+		APIKey string `json:"api_key"`
+	} `json:"credentials"`
+	Options struct {
+		MaxResults int    `json:"max_results"`
+		Language   string `json:"language"`
+		SafeSearch int    `json:"safe_search"`
+	} `json:"options"`
+	Format string `json:"format"`
+}
+
+func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"providers": h.router.Stats()})
 }
 
 // writeJSONError writes an error response as JSON with the given status code.

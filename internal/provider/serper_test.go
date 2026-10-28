@@ -11,7 +11,7 @@ import (
 )
 
 func TestSerperName(t *testing.T) {
-	s := NewSerper("test-key", 5*time.Second)
+	s := NewSerper(5 * time.Second)
 	if s.Name() != "serper" {
 		t.Errorf("Name() = %q, want %q", s.Name(), "serper")
 	}
@@ -75,10 +75,10 @@ func TestSerperSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := NewSerper("serper-api-key", 5*time.Second)
+	s := NewSerper(5 * time.Second)
 	s.BaseURL = srv.URL
 
-	resp, err := s.Search(context.Background(), "test query", SearchOpts{MaxResults: 5})
+	resp, err := s.Search(context.Background(), "test query", SearchOpts{APIKey: "serper-api-key", MaxResults: 5})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
 	}

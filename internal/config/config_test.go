@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,7 +27,6 @@ defaults:
 providers:
   - name: tavily
     tier: 1
-    api_key: test-key
     rate_limit:
       requests: 1000
       window: 720h
@@ -68,9 +68,6 @@ metrics:
 	if cfg.Providers[0].Tier != 1 {
 		t.Errorf("Providers[0].Tier = %d, want 1", cfg.Providers[0].Tier)
 	}
-	if cfg.Providers[0].APIKey != "test-key" {
-		t.Errorf("Providers[0].APIKey = %q, want %q", cfg.Providers[0].APIKey, "test-key")
-	}
 	if cfg.Providers[0].RateLimit.Requests != 1000 {
 		t.Errorf("RateLimit.Requests = %d, want 1000", cfg.Providers[0].RateLimit.Requests)
 	}
@@ -86,14 +83,15 @@ metrics:
 }
 
 func TestLoadConfigEnvSubstitution(t *testing.T) {
-	t.Setenv("TEST_TAVILY_KEY", "tvly-secret-123")
+	t.Setenv("TEST_GATEWAY_HASH", strings.Repeat("a", 64))
 
 	yaml := `
 listen: ":8080"
+auth:
+  token_hashes: ["${TEST_GATEWAY_HASH}"]
 providers:
   - name: tavily
     tier: 1
-    api_key: ${TEST_TAVILY_KEY}
     timeout: 3s
 `
 	path := writeTestConfig(t, yaml)
@@ -102,8 +100,8 @@ providers:
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.Providers[0].APIKey != "tvly-secret-123" {
-		t.Errorf("APIKey = %q, want %q", cfg.Providers[0].APIKey, "tvly-secret-123")
+	if len(cfg.Auth.TokenHashes) != 1 || cfg.Auth.TokenHashes[0] != strings.Repeat("a", 64) {
+		t.Error("gateway token hash substitution failed")
 	}
 }
 
@@ -170,8 +168,8 @@ func TestValidateConfig(t *testing.T) {
 			name: "multiple providers valid",
 			cfg: Config{
 				Providers: []ProviderConfig{
-					{Name: "tavily", Tier: 1, APIKey: "key1"},
-					{Name: "brave", Tier: 1, APIKey: "key2"},
+					{Name: "tavily", Tier: 1},
+					{Name: "brave", Tier: 1},
 				},
 			},
 			wantErr: false,
@@ -180,10 +178,28 @@ func TestValidateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.Auth.TokenHashes = []string{strings.Repeat("a", 64)}
 			err := tt.cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRejectStoredUpstreamKeys(t *testing.T) {
+	path := writeTestConfig(t, "providers:\n  - name: brave\n    tier: 1\n    api_key: secret-canary\n")
+	_, err := Load(path)
+	if err == nil || strings.Contains(err.Error(), "secret-canary") {
+		t.Fatal("stored keys must be rejected safely")
+	}
+}
+
+func TestValidateGatewayHashes(t *testing.T) {
+	for _, hashes := range [][]string{nil, {""}, {"not-a-hash"}, {strings.Repeat("z", 64)}} {
+		cfg := Config{Providers: []ProviderConfig{{Name: "brave", Tier: 1}}, Auth: AuthConfig{TokenHashes: hashes}}
+		if cfg.Validate() == nil {
+			t.Fatal("invalid authentication accepted")
+		}
 	}
 }

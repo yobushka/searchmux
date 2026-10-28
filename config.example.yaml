@@ -1,5 +1,9 @@
 listen: ":8080"
 
+auth:
+  token_hashes:
+    - ${GATEWAY_TOKEN_SHA256}
+
 defaults:
   timeout: 5s
   max_results: 10
@@ -7,7 +11,6 @@ defaults:
 providers:
   - name: tavily
     tier: 1
-    api_key: ${TAVILY_API_KEY}
     rate_limit:
       requests: 1000
       window: 720h  # 30 days
@@ -15,7 +18,6 @@ providers:
 
   - name: brave
     tier: 1
-    api_key: ${BRAVE_API_KEY}
     rate_limit:
       requests: 2000
       window: 720h
@@ -23,11 +25,18 @@ providers:
 
   - name: serper
     tier: 1
-    api_key: ${SERPER_API_KEY}
     rate_limit:
       requests: 2500
       window: 720h
     timeout: 3s
+
+  - name: exa
+    tier: 1
+    timeout: 5s
+
+  - name: jina
+    tier: 1
+    timeout: 5s
 
   - name: searxng
     tier: 2
@@ -38,8 +47,9 @@ routing:
   strategy: round-robin
 
 circuit_breaker:
-  threshold: 5
-  timeout: 60s
+  threshold: 3
+  window: 60s
+  cooldown: 30s
 
 metrics:
   enabled: true

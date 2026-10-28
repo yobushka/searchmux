@@ -11,22 +11,20 @@ import (
 
 // Brave implements Provider for the Brave Search API.
 type Brave struct {
-	apiKey  string
 	client  *http.Client
 	BaseURL string
 }
 
 // NewBrave creates a new Brave provider.
-func NewBrave(apiKey string, timeout time.Duration) *Brave {
+func NewBrave(timeout time.Duration) *Brave {
 	return &Brave{
-		apiKey:  apiKey,
-		client:  &http.Client{Timeout: timeout},
+		client:  newHTTPClient(timeout),
 		BaseURL: "https://api.search.brave.com",
 	}
 }
 
-func (b *Brave) Name() string   { return "brave" }
-func (b *Brave) Available() bool { return b.apiKey != "" }
+func (b *Brave) Name() string    { return "brave" }
+func (b *Brave) Available() bool { return b.BaseURL != "" }
 
 // braveResponse is the JSON response from the Brave Search API.
 type braveResponse struct {
@@ -50,15 +48,20 @@ var safesearchMap = map[int]string{
 	2: "strict",
 }
 
+func (b *Brave) RequiresAPIKey() bool { return true }
+
 func (b *Brave) Search(ctx context.Context, query string, opts SearchOpts) (*Response, error) {
+	if opts.APIKey == "" {
+		return nil, ErrMissingAPIKey
+	}
 	url := b.BaseURL + "/res/v1/web/search"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("brave: create request: %w", err)
+		return nil, fmt.Errorf("brave: create request")
 	}
 
-	req.Header.Set("X-Subscription-Token", b.apiKey)
+	req.Header.Set("X-Subscription-Token", opts.APIKey)
 
 	q := req.URL.Query()
 	q.Set("q", query)
@@ -72,17 +75,17 @@ func (b *Brave) Search(ctx context.Context, query string, opts SearchOpts) (*Res
 
 	resp, err := b.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("brave: do request: %w", err)
+		return nil, fmt.Errorf("brave: do request")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("brave: unexpected status %d", resp.StatusCode)
+		return nil, &HTTPError{StatusCode: resp.StatusCode}
 	}
 
 	var braveResp braveResponse
 	if err := json.NewDecoder(resp.Body).Decode(&braveResp); err != nil {
-		return nil, fmt.Errorf("brave: decode response: %w", err)
+		return nil, fmt.Errorf("brave: decode response")
 	}
 
 	if braveResp.Web == nil {

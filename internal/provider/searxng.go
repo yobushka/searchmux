@@ -23,7 +23,7 @@ func NewSearXNG(apiBase string, timeout time.Duration) *SearXNG {
 	}
 }
 
-func (s *SearXNG) Name() string   { return "searxng" }
+func (s *SearXNG) Name() string    { return "searxng" }
 func (s *SearXNG) Available() bool { return s.apiBase != "" }
 
 // searxngResponse is the JSON response from the SearXNG API.
@@ -43,7 +43,7 @@ func (s *SearXNG) Search(ctx context.Context, query string, opts SearchOpts) (*R
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("searxng: create request: %w", err)
+		return nil, fmt.Errorf("searxng: create request")
 	}
 
 	q := req.URL.Query()
@@ -56,7 +56,7 @@ func (s *SearXNG) Search(ctx context.Context, query string, opts SearchOpts) (*R
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("searxng: do request: %w", err)
+		return nil, fmt.Errorf("searxng: do request")
 	}
 	defer resp.Body.Close()
 
@@ -66,7 +66,7 @@ func (s *SearXNG) Search(ctx context.Context, query string, opts SearchOpts) (*R
 
 	var searxResp searxngResponse
 	if err := json.NewDecoder(resp.Body).Decode(&searxResp); err != nil {
-		return nil, fmt.Errorf("searxng: decode response: %w", err)
+		return nil, fmt.Errorf("searxng: decode response")
 	}
 
 	// Limit results to MaxResults if specified

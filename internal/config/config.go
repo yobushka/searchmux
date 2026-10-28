@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"regexp"
@@ -11,12 +12,18 @@ import (
 
 // Config is the top-level configuration for searchmux.
 type Config struct {
-	Listen         string              `yaml:"listen"`
-	Defaults       DefaultsConfig      `yaml:"defaults"`
-	Providers      []ProviderConfig    `yaml:"providers"`
-	Routing        RoutingConfig       `yaml:"routing"`
+	Listen         string               `yaml:"listen"`
+	Defaults       DefaultsConfig       `yaml:"defaults"`
+	Providers      []ProviderConfig     `yaml:"providers"`
+	Routing        RoutingConfig        `yaml:"routing"`
 	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
-	Metrics        MetricsConfig       `yaml:"metrics"`
+	Metrics        MetricsConfig        `yaml:"metrics"`
+	Auth           AuthConfig           `yaml:"auth"`
+}
+
+// AuthConfig stores only SHA-256 hashes of gateway bearer tokens.
+type AuthConfig struct {
+	TokenHashes []string `yaml:"token_hashes"`
 }
 
 // DefaultsConfig holds default search parameters.
@@ -31,7 +38,6 @@ type DefaultsConfig struct {
 type ProviderConfig struct {
 	Name      string        `yaml:"name"`
 	Tier      int           `yaml:"tier"`
-	APIKey    string        `yaml:"api_key"`
 	APIBase   string        `yaml:"api_base"`
 	RateLimit RateLimitConf `yaml:"rate_limit"`
 	Timeout   time.Duration `yaml:"timeout"`
@@ -52,6 +58,8 @@ type RoutingConfig struct {
 type CircuitBreakerConfig struct {
 	Threshold int           `yaml:"threshold"`
 	Timeout   time.Duration `yaml:"timeout"`
+	Window    time.Duration `yaml:"window"`
+	Cooldown  time.Duration `yaml:"cooldown"`
 }
 
 // MetricsConfig controls Prometheus metrics exposure.
@@ -93,6 +101,12 @@ func (c *Config) applyDefaults() {
 	if c.CircuitBreaker.Timeout == 0 {
 		c.CircuitBreaker.Timeout = 30 * time.Second
 	}
+	if c.CircuitBreaker.Window == 0 {
+		c.CircuitBreaker.Window = time.Minute
+	}
+	if c.CircuitBreaker.Cooldown == 0 {
+		c.CircuitBreaker.Cooldown = c.CircuitBreaker.Timeout
+	}
 	if c.Metrics.Path == "" {
 		c.Metrics.Path = "/metrics"
 	}
@@ -110,7 +124,15 @@ func Load(path string) (*Config, error) {
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config YAML: %w", err)
+		return nil, fmt.Errorf("parsing config YAML: invalid configuration")
+	}
+	// Reject legacy secrets without retaining their values in the configuration.
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, fmt.Errorf("parsing config YAML: invalid configuration")
+	}
+	if containsAPIKey(&document) {
+		return nil, fmt.Errorf("config: upstream api_key settings are forbidden; use POST credentials")
 	}
 
 	cfg.applyDefaults()
@@ -120,6 +142,18 @@ func Load(path string) (*Config, error) {
 
 // Validate checks that the config has all required fields set correctly.
 func (c *Config) Validate() error {
+	if len(c.Auth.TokenHashes) == 0 {
+		return fmt.Errorf("config: auth.token_hashes requires at least one gateway token hash")
+	}
+	for _, hash := range c.Auth.TokenHashes {
+		decoded, err := hex.DecodeString(hash)
+		if err != nil || len(decoded) != 32 {
+			return fmt.Errorf("config: gateway token hashes must be SHA-256 hex strings")
+		}
+	}
+	if c.CircuitBreaker.Threshold < 0 || c.CircuitBreaker.Window < 0 || c.CircuitBreaker.Cooldown < 0 || c.CircuitBreaker.Timeout < 0 {
+		return fmt.Errorf("config: circuit breaker settings must be positive")
+	}
 	if len(c.Providers) == 0 {
 		return fmt.Errorf("config: at least one provider must be configured")
 	}
@@ -134,4 +168,20 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func containsAPIKey(node *yaml.Node) bool {
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i < len(node.Content); i += 2 {
+			if node.Content[i].Value == "api_key" {
+				return true
+			}
+		}
+	}
+	for _, child := range node.Content {
+		if containsAPIKey(child) {
+			return true
+		}
+	}
+	return false
 }

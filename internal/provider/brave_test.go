@@ -10,7 +10,7 @@ import (
 )
 
 func TestBraveName(t *testing.T) {
-	b := NewBrave("test-key", 5*time.Second)
+	b := NewBrave(5 * time.Second)
 	if b.Name() != "brave" {
 		t.Errorf("Name() = %q, want %q", b.Name(), "brave")
 	}
@@ -62,10 +62,10 @@ func TestBraveSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := NewBrave("brave-api-key", 5*time.Second)
+	b := NewBrave(5 * time.Second)
 	b.BaseURL = srv.URL
 
-	resp, err := b.Search(context.Background(), "test query", SearchOpts{
+	resp, err := b.Search(context.Background(), "test query", SearchOpts{APIKey: "brave-api-key",
 		MaxResults: 3,
 		SafeSearch: 1, // moderate
 	})
@@ -101,10 +101,10 @@ func TestBraveNoWebResults(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	b := NewBrave("test-key", 5*time.Second)
+	b := NewBrave(5 * time.Second)
 	b.BaseURL = srv.URL
 
-	resp, err := b.Search(context.Background(), "no results", SearchOpts{MaxResults: 5})
+	resp, err := b.Search(context.Background(), "no results", SearchOpts{APIKey: "brave-api-key", MaxResults: 5})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
 	}

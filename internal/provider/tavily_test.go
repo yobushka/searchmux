@@ -11,14 +11,14 @@ import (
 )
 
 func TestTavilyName(t *testing.T) {
-	tv := NewTavily("test-key", 5*time.Second)
+	tv := NewTavily(5 * time.Second)
 	if tv.Name() != "tavily" {
 		t.Errorf("Name() = %q, want %q", tv.Name(), "tavily")
 	}
 }
 
 func TestTavilyAvailable(t *testing.T) {
-	tv := NewTavily("test-key", 5*time.Second)
+	tv := NewTavily(5 * time.Second)
 	if !tv.Available() {
 		t.Error("Available() = false, want true")
 	}
@@ -84,10 +84,10 @@ func TestTavilySearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tv := NewTavily("test-api-key", 5*time.Second)
+	tv := NewTavily(5 * time.Second)
 	tv.BaseURL = srv.URL
 
-	resp, err := tv.Search(context.Background(), "test query", SearchOpts{MaxResults: 5})
+	resp, err := tv.Search(context.Background(), "test query", SearchOpts{APIKey: "test-api-key", MaxResults: 5})
 	if err != nil {
 		t.Fatalf("Search() error: %v", err)
 	}
@@ -118,10 +118,10 @@ func TestTavilySearchError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	tv := NewTavily("test-api-key", 5*time.Second)
+	tv := NewTavily(5 * time.Second)
 	tv.BaseURL = srv.URL
 
-	_, err := tv.Search(context.Background(), "test query", SearchOpts{MaxResults: 5})
+	_, err := tv.Search(context.Background(), "test query", SearchOpts{APIKey: "test-api-key", MaxResults: 5})
 	if err == nil {
 		t.Fatal("Search() expected error for 429 response, got nil")
 	}

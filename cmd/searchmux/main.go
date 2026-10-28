@@ -35,7 +35,8 @@ func main() {
 	tracker := ratelimit.New()
 	r := router.New(router.Config{
 		CBThreshold: cfg.CircuitBreaker.Threshold,
-		CBTimeout:   cfg.CircuitBreaker.Timeout,
+		CBTimeout:   cfg.CircuitBreaker.Cooldown,
+		CBWindow:    cfg.CircuitBreaker.Window,
 		RateLimiter: tracker,
 	})
 
@@ -60,7 +61,7 @@ func main() {
 	mux := h.Mux()
 
 	slog.Info("starting searchmux", "listen", cfg.Listen)
-	if err := http.ListenAndServe(cfg.Listen, server.LoggingMiddleware(mux)); err != nil {
+	if err := http.ListenAndServe(cfg.Listen, server.LoggingMiddleware(server.AuthMiddleware(cfg.Auth.TokenHashes, mux))); err != nil {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
@@ -76,11 +77,15 @@ func createProvider(pc config.ProviderConfig, defaults config.DefaultsConfig) pr
 	}
 	switch pc.Name {
 	case "tavily":
-		return provider.NewTavily(pc.APIKey, timeout)
+		return provider.NewTavily(timeout)
 	case "brave":
-		return provider.NewBrave(pc.APIKey, timeout)
+		return provider.NewBrave(timeout)
 	case "serper":
-		return provider.NewSerper(pc.APIKey, timeout)
+		return provider.NewSerper(timeout)
+	case "exa":
+		return provider.NewExa(timeout)
+	case "jina":
+		return provider.NewJina(timeout)
 	case "searxng":
 		return provider.NewSearXNG(pc.APIBase, timeout)
 	default:

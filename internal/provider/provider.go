@@ -17,9 +17,11 @@ type Response struct {
 
 // SearchOpts contains optional parameters for a search request.
 type SearchOpts struct {
-	MaxResults int
-	Language   string
-	SafeSearch int // 0=off, 1=moderate, 2=strict
+	APIKey      string            `json:"-"`
+	Credentials map[string]string `json:"-"`
+	MaxResults  int
+	Language    string
+	SafeSearch  int // 0=off, 1=moderate, 2=strict
 }
 
 // Provider defines the interface that all search providers must implement.

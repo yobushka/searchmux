@@ -11,22 +11,20 @@ import (
 
 // Tavily implements Provider for the Tavily search API.
 type Tavily struct {
-	apiKey string
-	client *http.Client
+	client  *http.Client
 	BaseURL string
 }
 
 // NewTavily creates a new Tavily provider.
-func NewTavily(apiKey string, timeout time.Duration) *Tavily {
+func NewTavily(timeout time.Duration) *Tavily {
 	return &Tavily{
-		apiKey: apiKey,
-		client: &http.Client{Timeout: timeout},
+		client:  newHTTPClient(timeout),
 		BaseURL: "https://api.tavily.com",
 	}
 }
 
-func (t *Tavily) Name() string   { return "tavily" }
-func (t *Tavily) Available() bool { return t.apiKey != "" }
+func (t *Tavily) Name() string    { return "tavily" }
+func (t *Tavily) Available() bool { return t.BaseURL != "" }
 
 // tavilyRequest is the JSON body sent to the Tavily API.
 type tavilyRequest struct {
@@ -46,7 +44,12 @@ type tavilyResult struct {
 	Score   float64 `json:"score"`
 }
 
+func (t *Tavily) RequiresAPIKey() bool { return true }
+
 func (t *Tavily) Search(ctx context.Context, query string, opts SearchOpts) (*Response, error) {
+	if opts.APIKey == "" {
+		return nil, ErrMissingAPIKey
+	}
 	reqBody := tavilyRequest{
 		Query:      query,
 		MaxResults: opts.MaxResults,
@@ -54,31 +57,31 @@ func (t *Tavily) Search(ctx context.Context, query string, opts SearchOpts) (*Re
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("tavily: marshal request: %w", err)
+		return nil, fmt.Errorf("tavily: marshal request")
 	}
 
 	url := t.BaseURL + "/search"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("tavily: create request: %w", err)
+		return nil, fmt.Errorf("tavily: create request")
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+t.apiKey)
+	req.Header.Set("Authorization", "Bearer "+opts.APIKey)
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("tavily: do request: %w", err)
+		return nil, fmt.Errorf("tavily: do request")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tavily: unexpected status %d", resp.StatusCode)
+		return nil, &HTTPError{StatusCode: resp.StatusCode}
 	}
 
 	var tavilyResp tavilyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tavilyResp); err != nil {
-		return nil, fmt.Errorf("tavily: decode response: %w", err)
+		return nil, fmt.Errorf("tavily: decode response")
 	}
 
 	results := make([]Result, len(tavilyResp.Results))
