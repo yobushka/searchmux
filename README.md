@@ -57,21 +57,40 @@ Tier 1 providers are tried first with round-robin. If all are exhausted or unava
 
 ## Quick Start
 
+### Docker
+
+Run from the repository directory using the prebuilt Docker Hub image:
+
+```bash
+cp .env.example .env  # Fill in API keys for the providers you use
+docker compose up -d
+```
+
+Docker Compose reads `.env` automatically and passes the API keys to the container. The service mounts `config.example.yaml` read-only and exposes port `8080`.
+
+Alternatively, run the image directly:
+
+```bash
+docker run -d --name searchmux -p 8080:8080 \
+  -v "$(pwd)/config.example.yaml:/etc/searchmux/config.yaml:ro" \
+  -e TAVILY_API_KEY=tvly-... \
+  -e BRAVE_API_KEY=BSA... \
+  -e SERPER_API_KEY=... \
+  yobushka/searchmux:latest
+```
+
+Available Docker Hub tags: `yobushka/searchmux:latest` and `yobushka/searchmux:v0.1.1`. To pin a version, replace `latest` with `v0.1.1` in `docker-compose.yml` or the command above.
+
+The listener is configured by `listen` in `config.example.yaml`; `PORT` does not override it. The example's SearXNG fallback requires a separately reachable instance at `http://searxng:8888`; this Compose file starts only SearchMux.
+
+### Build from source
+
 ```bash
 # Build
 go build -o searchmux ./cmd/searchmux
 
 # Run with config
 ./searchmux --config config.example.yaml
-
-# Or with Docker
-docker build -t searchmux .
-docker run -p 8080:8080 \
-  -v /path/to/config.yaml:/etc/searchmux/config.yaml \
-  -e TAVILY_API_KEY=tvly-... \
-  -e BRAVE_API_KEY=BSA... \
-  -e SERPER_API_KEY=... \
-  searchmux
 ```
 
 ## Configuration

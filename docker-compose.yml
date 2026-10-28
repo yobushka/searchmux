@@ -1,6 +1,7 @@
 services:
   searchmux:
-    build: .
+    image: yobushka/searchmux:latest
+    container_name: searchmux
     ports:
       - "8080:8080"
     environment:
